@@ -32,14 +32,14 @@ def get_main_menu(user_id):
         ]
     
     if not db.is_member(user_id):
-        return [[Button.url("Contact Admin to Buy", "https://t.me/your_admin_username")]] # Replace with actual username or dynamic link
+        return [[Button.url("Contact Admin to Buy", "https://t.me/+sHKpff6xBJ44Zjk1")]]
     
     # Standard User Menu
     return [
         [Button.inline("➕ Add Account", b"add_acc"), Button.inline("📱 My Accounts", b"my_accs")],
         [Button.inline("🚀 Start Report", b"start_report"), Button.inline("📋 Active Tasks", b"active_tasks")],
         [Button.inline("📈 My Balance", b"my_balance"), Button.inline("📖 How to Use", b"user_help")],
-        [Button.url("Contact Support", "https://t.me/your_support_link")]
+        [Button.url("Contact Support", "https://t.me/+sHKpff6xBJ44Zjk1")]
     ]
 
 # --- Event Handlers ---
@@ -72,29 +72,39 @@ async def start_handler(event):
 @bot.on(events.CallbackQuery(data=b"admin_add_member"))
 async def admin_add_member(event):
     if event.sender_id not in ADMIN_IDS: return
-    async with bot.conversation(event.sender_id) as conv:
-        await conv.send_message("Send User ID:")
-        res = await conv.get_response(); uid = int(res.text)
-        await conv.send_message("Plan (weekly/monthly/yearly):")
-        res = await conv.get_response(); plan = res.text.lower()
-        map = {"weekly": 2500, "monthly": 15000, "yearly": 150000}
-        db.update_membership(uid, plan, map.get(plan, 0))
-        await conv.send_message("✅ Success")
+    try:
+        async with bot.conversation(event.sender_id, timeout=300) as conv:
+            await conv.send_message("Send User ID:")
+            res = await conv.get_response(); uid = int(res.text)
+            await conv.send_message("Plan (weekly/monthly/yearly):")
+            res = await conv.get_response(); plan = res.text.lower()
+            plan_map = {"weekly": 2500, "monthly": 15000, "yearly": 150000}
+            db.update_membership(uid, plan, plan_map.get(plan, 0))
+            await conv.send_message("✅ Success")
+    except asyncio.TimeoutError:
+        await bot.send_message(event.sender_id, "❌ Error: Conversation timed out (5 mins). Please try again.")
+    except Exception as e:
+        await bot.send_message(event.sender_id, f"❌ Error: {e}")
 
 @bot.on(events.CallbackQuery(data=b"admin_broadcast"))
 async def admin_broadcast(event):
     if event.sender_id not in ADMIN_IDS: return
-    async with bot.conversation(event.sender_id) as conv:
-        await conv.send_message("Send the message (Text/Photo/Video) you want to broadcast:")
-        msg = await conv.get_response()
-        users = db.get_all_users()
-        count = 0
-        for u in users:
-            try:
-                await bot.send_message(u, msg)
-                count += 1
-            except: pass
-        await conv.send_message(f"✅ Broadcast finished. Sent to {count} users.")
+    try:
+        async with bot.conversation(event.sender_id, timeout=300) as conv:
+            await conv.send_message("Send the message (Text/Photo/Video) you want to broadcast:")
+            msg = await conv.get_response()
+            users = db.get_all_users()
+            count = 0
+            for u in users:
+                try:
+                    await bot.send_message(u, msg)
+                    count += 1
+                except: pass
+            await conv.send_message(f"✅ Broadcast finished. Sent to {count} users.")
+    except asyncio.TimeoutError:
+        await bot.send_message(event.sender_id, "❌ Error: Broadcast cancelled due to timeout.")
+    except Exception as e:
+        await bot.send_message(event.sender_id, f"❌ Error: {e}")
 
 @bot.on(events.CallbackQuery(data=b"admin_stats"))
 async def admin_stats(event):
@@ -106,21 +116,27 @@ async def admin_stats(event):
 @bot.on(events.CallbackQuery(data=b"add_acc"))
 async def add_account_flow(event):
     if not db.is_member(event.sender_id): return await event.answer("No Membership", alert=True)
-    async with bot.conversation(event.sender_id) as conv:
-        await conv.send_message("📥 Send Telethon Session String:")
-        res = await conv.get_response(); sess = res.text.strip()
-        try:
-            device = get_random_device()
-            temp = TelegramClient(StringSession(sess), cfg['api_id'], cfg['api_hash'], 
-                                   device_model=device['device_model'], system_version=device['system_version'])
-            await temp.connect()
-            if await temp.is_user_authorized():
-                me = await temp.get_me()
-                db.add_account(event.sender_id, sess, me.phone, me.username, device)
-                await conv.send_message("✅ Added")
-            else: await conv.send_message("❌ Invalid")
-            await temp.disconnect()
-        except Exception as e: await conv.send_message(f"❌ Error: {e}")
+    try:
+        async with bot.conversation(event.sender_id, timeout=300) as conv:
+            await conv.send_message("📥 Send Telethon Session String:")
+            res = await conv.get_response(); sess = res.text.strip()
+            try:
+                device = get_random_device()
+                temp = TelegramClient(StringSession(sess), cfg['api_id'], cfg['api_hash'], 
+                                       device_model=device['device_model'], system_version=device['system_version'])
+                await temp.connect()
+                if await temp.is_user_authorized():
+                    me = await temp.get_me()
+                    db.add_account(event.sender_id, sess, me.phone, me.username, device)
+                    await conv.send_message("✅ Added")
+                else: await conv.send_message("❌ Invalid Session")
+                await temp.disconnect()
+            except Exception as e: await conv.send_message(f"❌ Connection Error: {e}")
+    except asyncio.TimeoutError:
+        await bot.send_message(event.sender_id, "❌ Error: Session link wait timed out. Please click 'Add Account' again.")
+    except Exception as e:
+        await bot.send_message(event.sender_id, f"❌ Error: {e}")
+        logging.error(f"Conversation error: {e}", exc_info=True)
 
 @bot.on(events.CallbackQuery(data=b"active_tasks"))
 async def active_tasks_flow(event):
@@ -158,15 +174,18 @@ async def list_accounts_flow(event):
 
 @bot.on(events.CallbackQuery(data=b"remove_acc"))
 async def remove_account_flow(event):
-    async with bot.conversation(event.sender_id) as conv:
-        await conv.send_message("🔢 Send index (e.g. 1):")
-        res = await conv.get_response()
-        try:
-            accs = db.get_user_accounts(event.sender_id)
-            idx = int(res.text)-1
-            db.remove_account(accs[idx]['id'], event.sender_id)
-            await conv.send_message("✅ Removed")
-        except: await conv.send_message("❌ Error")
+    try:
+        async with bot.conversation(event.sender_id, timeout=300) as conv:
+            await conv.send_message("🔢 Send index (e.g. 1):")
+            res = await conv.get_response()
+            try:
+                accs = db.get_user_accounts(event.sender_id)
+                idx = int(res.text)-1
+                db.remove_account(accs[idx]['id'], event.sender_id)
+                await conv.send_message("✅ Removed")
+            except: await conv.send_message("❌ Error: Invalid index or account not found.")
+    except asyncio.TimeoutError:
+        await bot.send_message(event.sender_id, "❌ Error: Timed out.")
 
 @bot.on(events.CallbackQuery(data=b"user_help"))
 async def user_help_handler(event):
@@ -182,15 +201,21 @@ async def user_help_handler(event):
 @bot.on(events.CallbackQuery(data=b"start_report"))
 async def start_report_flow(event):
     if not db.is_member(event.sender_id): return
-    async with bot.conversation(event.sender_id) as conv:
-        await conv.send_message("🔗 Target link:")
-        res = await conv.get_response(); target = res.text
-        await conv.send_message("🔢 Count:")
-        res = await conv.get_response(); count = int(res.text)
-        from telethon.types import InputReportReasonSpam
-        reporter = Reporter(event.sender_id, cfg['api_id'], cfg['api_hash'])
-        await conv.send_message("🚀 Attack Started")
-        asyncio.create_task(reporter.start_mass_report(target, count, InputReportReasonSpam(), "Violation report"))
+    try:
+        async with bot.conversation(event.sender_id, timeout=300) as conv:
+            await conv.send_message("🔗 Target link:")
+            res = await conv.get_response(); target = res.text
+            await conv.send_message("🔢 Count:")
+            res = await conv.get_response(); count = int(res.text)
+            from telethon.types import InputReportReasonSpam
+            reporter = Reporter(event.sender_id, cfg['api_id'], cfg['api_hash'])
+            await conv.send_message("🚀 Attack Started")
+            asyncio.create_task(reporter.start_mass_report(target, count, InputReportReasonSpam(), "Violation report"))
+    except asyncio.TimeoutError:
+        await bot.send_message(event.sender_id, "❌ Error: Report setup timed out.")
+    except Exception as e:
+        await bot.send_message(event.sender_id, f"❌ Error: {e}")
+        logging.error(f"Report flow error: {e}")
 
 @bot.on(events.CallbackQuery(data=b"my_balance"))
 async def my_balance(event):
