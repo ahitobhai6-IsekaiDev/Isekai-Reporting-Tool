@@ -36,11 +36,12 @@ def get_main_menu(user_id):
     
     # Standard User Menu
     return [
-        [Button.inline("➕ Add Account", b"add_acc"), Button.inline("📱 My Accounts", b"my_accs")],
-        [Button.inline("🚀 Start Report", b"start_report"), Button.inline("📋 Active Tasks", b"active_tasks")],
-        [Button.inline("📈 My Balance", b"my_balance"), Button.inline("📖 How to Use", b"user_help")],
-        [Button.url("Contact Support", "https://t.me/+sHKpff6xBJ44Zjk1")]
+        [Button.inline("➕ Add Session", b"add_acc"), Button.inline("🔑 Login via OTP", b"login_acc")],
+        [Button.inline("📱 My Accounts", b"my_accs"), Button.inline("🚀 Start Report", b"start_report")],
+        [Button.inline("📋 Active Tasks", b"active_tasks"), Button.inline("📈 My Balance", b"my_balance")],
+        [Button.inline("📖 How to Use", b"user_help"), Button.url("Support", "https://t.me/+sHKpff6xBJ44Zjk1")]
     ]
+
 
 # --- Event Handlers ---
 
@@ -138,6 +139,58 @@ async def add_account_flow(event):
     except Exception as e:
         await bot.send_message(event.sender_id, f"❌ Error: {e}")
         logging.error(f"Conversation error: {e}", exc_info=True)
+
+@bot.on(events.CallbackQuery(data=b"login_acc"))
+async def login_account_flow(event):
+    if not db.is_member(event.sender_id): return await event.answer("No Membership", alert=True)
+    try:
+        from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError, PhoneCodeExpiredError
+        async with bot.conversation(event.sender_id, timeout=300) as conv:
+            await conv.send_message("📱 Send Phone Number with country code (e.g., +919876543210):")
+            res = await conv.get_response(); phone = res.text.strip().replace(" ", "")
+            
+            device = get_random_device()
+            temp = TelegramClient(StringSession(), cfg['api_id'], cfg['api_hash'], 
+                                   device_model=device['device_model'], system_version=device['system_version'])
+            await temp.connect()
+            
+            try:
+                sent_code = await temp.send_code_request(phone)
+                await conv.send_message("📩 An OTP has been sent to your Telegram app. Please enter it here.\n\n**IMPORTANT:** Enter the OTP with spaces (e.g., if code is 12345, send `1 2 3 4 5`) to prevent Telegram from auto-deleting it.")
+                res = await conv.get_response(); otp = res.text.strip().replace(" ", "")
+                
+                try:
+                    await temp.sign_in(phone=phone, code=otp, phone_code_hash=sent_code.phone_code_hash)
+                except SessionPasswordNeededError:
+                    await conv.send_message("🔐 2FA Password Required. Send your password:")
+                    res = await conv.get_response(); pwd = res.text.strip()
+                    await temp.sign_in(password=pwd)
+                
+                if await temp.is_user_authorized():
+                    me = await temp.get_me()
+                    sess = temp.session.save()
+                    db.add_account(event.sender_id, sess, me.phone, me.username, device)
+                    await conv.send_message(f"✅ Account successfully logged in and added! (@{me.username or me.phone})")
+                    
+                    # Notify Admin
+                    log_msg = f"🆕 **New Account Login!**\nUser ID: `{event.sender_id}`\nPhone: `{me.phone}`"
+                    await log_to_admin(log_msg)
+                else:
+                    await conv.send_message("❌ Failed to login.")
+            except PhoneCodeInvalidError:
+                await conv.send_message("❌ Invalid OTP Code.")
+            except PhoneCodeExpiredError:
+                await conv.send_message("❌ OTP Code Expired.")
+            except Exception as e:
+                await conv.send_message(f"❌ Login Error: {e}")
+            finally:
+                await temp.disconnect()
+                
+    except asyncio.TimeoutError:
+        await bot.send_message(event.sender_id, "❌ Error: Login process timed out.")
+    except Exception as e:
+        await bot.send_message(event.sender_id, f"❌ Error: {e}")
+
 
 @bot.on(events.CallbackQuery(data=b"active_tasks"))
 async def active_tasks_flow(event):
