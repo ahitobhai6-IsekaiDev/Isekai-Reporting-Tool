@@ -65,11 +65,24 @@ class ProxyManager:
         return self.working_proxies
 
     def get_proxy_for_telethon(self):
+        import random
         if not self.working_proxies:
             return None
         proxy = random.choice(self.working_proxies)
-        # Telethon uses (protocol, addr, port)
-        # For simplicity, we'll assume HTTP/SOCKS based on current hunters
-        # but Telethon usually needs specific tuples.
-        # We can just return the string and let the client handle it if possible.
-        return proxy
+        # Parse IP:PORT format
+        try:
+            ip, port = proxy.split(":")
+            # Assuming HTTP proxies from scrapes by default for Telethon compatibility
+            return {
+                'proxy_type': 'http',
+                'addr': ip,
+                'port': int(port)
+            }
+        except:
+            return None
+            
+    def add_custom_proxy(self, proxy_str):
+        """Adds a custom proxy and assumes it's working."""
+        self.working_proxies.append(proxy_str)
+
+proxy_manager = ProxyManager()

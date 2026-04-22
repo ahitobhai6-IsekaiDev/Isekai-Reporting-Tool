@@ -5,3 +5,4 @@ requests==2.28.2
 python-dateutil==2.8.2
 pyrogram==2.0.106
 tgcrypto==1.2.5
+python-socks[asyncio]==2.4.4

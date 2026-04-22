@@ -21,15 +21,49 @@ DEVICES = [
 APP_VERSIONS = ["9.1.3", "9.2.2", "9.3.0", "9.4.1", "10.0.1"]
 LANG_CODES = ["en", "hi", "ru", "es", "tr", "id"]
 
+# Realistic session display names shown in Telegram > Settings > Active Sessions
+SESSION_NAMES = [
+    "Android (Samsung Galaxy S22)",
+    "Android (Xiaomi Redmi Note 11)",
+    "Android (OnePlus 9 Pro)",
+    "Android (Google Pixel 7)",
+    "Android (Oppo Reno 8)",
+    "Android (Realme GT 2)",
+    "Android (Vivo X80 Pro)",
+    "Android (Samsung Galaxy A53)",
+    "Android (Motorola Edge 30)",
+    "Android (Sony Xperia 5 IV)"
+]
+
+# Country-specific language/system locale combos for Telegram session geolocation spoofing
+COUNTRY_LOCALES = [
+    {"lang": "en", "sys_lang": "en-US", "country": "United States"},
+    {"lang": "en", "sys_lang": "en-GB", "country": "United Kingdom"},
+    {"lang": "ru", "sys_lang": "ru-RU", "country": "Russia"},
+    {"lang": "hi", "sys_lang": "hi-IN", "country": "India"},
+    {"lang": "id", "sys_lang": "id-ID", "country": "Indonesia"},
+    {"lang": "tr", "sys_lang": "tr-TR", "country": "Turkey"},
+    {"lang": "es", "sys_lang": "es-ES", "country": "Spain"},
+    {"lang": "de", "sys_lang": "de-DE", "country": "Germany"},
+    {"lang": "ar", "sys_lang": "ar-SA", "country": "Saudi Arabia"},
+    {"lang": "fr", "sys_lang": "fr-FR", "country": "France"},
+    {"lang": "pt", "sys_lang": "pt-BR", "country": "Brazil"},
+    {"lang": "nl", "sys_lang": "nl-NL", "country": "Netherlands"},
+    {"lang": "pl", "sys_lang": "pl-PL", "country": "Poland"},
+    {"lang": "uk", "sys_lang": "uk-UA", "country": "Ukraine"},
+    {"lang": "uz", "sys_lang": "uz-UZ", "country": "Uzbekistan"},
+]
+
 def get_random_device():
     device = random.choice(DEVICES)
-    lang = random.choice(LANG_CODES)
+    locale = random.choice(COUNTRY_LOCALES)
     return {
         "device_model": f"{device['brand']} {device['model']}",
         "system_version": f"{device['system']} (SDK {device['sdk']})",
         "app_version": random.choice(APP_VERSIONS),
-        "lang_code": lang,
-        "system_lang_code": f"{lang}-{lang.upper()}"
+        "lang_code": locale["lang"],
+        "system_lang_code": locale["sys_lang"],
+        "country": locale["country"]
     }
 
 def format_speed(count, seconds):
