@@ -86,14 +86,22 @@ def convert_to_telethon(session_string: str):
         else:
             return session_string
 
-        # Telethon StringSession format:
-        # [Version (1 byte)][DC ID (1 byte)][IP Address (4 bytes or 16 bytes)][Port (2 bytes)][Auth Key (256 bytes)]
-        # Telethon uses 1 as version byte.
-        ip = b'\x00\x00\x00\x00' # Dummy IP
-        port = 443
+        # Map DC IDs to official Telegram IPs
+        dc_ips = {
+            1: "149.154.175.50",
+            2: "149.154.167.51",
+            3: "149.154.175.100",
+            4: "149.154.167.91",
+            5: "91.108.56.130"
+        }
+        ip = dc_ips.get(dc_id, "149.154.167.51")
         
-        telethon_data = struct.pack('>B4sH256s', dc_id, ip, port, auth_key)
-        return "1" + base64.urlsafe_b64encode(telethon_data).decode('ascii')
+        from telethon.sessions import StringSession
+        from telethon.crypto import AuthKey
+        session = StringSession()
+        session.set_dc(dc_id, ip, 443)
+        session.auth_key = AuthKey(auth_key)
+        return session.save()
         
     except Exception as e:
         print(f"Conversion error: {e}")
