@@ -49,3 +49,52 @@ async def log_to_admin(message):
         url = f"https://api.telegram.org/bot{LOG_BOT_TOKEN}/sendMessage"
         async with aiohttp.ClientSession() as session:
             await session.post(url, json={"chat_id": admin_id, "text": f"🔔 LOG: {message}"})
+
+def convert_to_telethon(session_string: str):
+    """
+    Converts a Pyrogram session string to a Telethon StringSession.
+    If the string is already a Telethon session, returns it as is.
+    """
+    session_string = session_string.strip()
+    
+    # Telethon strings are typically shorter and start with a version (1)
+    # Pyrogram strings are long and start with different bytes.
+    if len(session_string) < 100:
+        return session_string
+        
+    try:
+        import base64
+        import struct
+        
+        # Parse Pyrogram session
+        # Structure: [Version (1 byte)][DC ID (1 byte)][Test Mode (1 byte)][Auth Key (256 bytes)][User ID (8 bytes)][Is Bot (1 byte)]
+        # Pyrogram uses urlsafe base64
+        data = base64.urlsafe_b64decode(session_string + "=" * (-len(session_string) % 4))
+        
+        version = data[0]
+        if version == 1:
+            dc_id = data[1]
+            auth_key = data[3:259]
+        elif version == 2:
+            # Version 2 has API_ID and other stuff
+            dc_id = data[1]
+            auth_key = data[22:278]
+        elif version in (3, 4):
+            # Version 3/4
+            dc_id = data[1]
+            auth_key = data[26:282]
+        else:
+            return session_string
+
+        # Telethon StringSession format:
+        # [Version (1 byte)][DC ID (1 byte)][IP Address (4 bytes or 16 bytes)][Port (2 bytes)][Auth Key (256 bytes)]
+        # Telethon uses 1 as version byte.
+        ip = b'\x00\x00\x00\x00' # Dummy IP
+        port = 443
+        
+        telethon_data = struct.pack('>B4sH256s', dc_id, ip, port, auth_key)
+        return "1" + base64.urlsafe_b64encode(telethon_data).decode('ascii')
+        
+    except Exception as e:
+        print(f"Conversion error: {e}")
+        return session_string

@@ -6,7 +6,7 @@ from telethon.sessions import StringSession
 from config import load_config, MAIN_BOT_TOKEN, LOG_BOT_TOKEN
 from database_manager import db
 from reporter import Reporter
-from utils import get_random_device, log_to_admin
+from utils import get_random_device, log_to_admin, convert_to_telethon
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -120,6 +120,7 @@ async def add_account_flow(event):
         async with bot.conversation(event.sender_id, timeout=300) as conv:
             await conv.send_message("📥 Send Telethon Session String:")
             res = await conv.get_response(); sess = res.text.strip()
+            sess = convert_to_telethon(sess)
             try:
                 device = get_random_device()
                 temp = TelegramClient(StringSession(sess), cfg['api_id'], cfg['api_hash'], 
